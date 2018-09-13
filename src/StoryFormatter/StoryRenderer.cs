@@ -144,7 +144,7 @@ namespace StoryFormatter
 				var currentClose = paragraphSizeClose;
 
 				var remaining = original;
-				var width = 0f;
+				var leadingWidth = 0f;
 
 				// Handle ignored lines.
 				if (!String.IsNullOrEmpty(ignoreLinePrefix) && remaining.StartsWith(ignoreLinePrefix))
@@ -176,13 +176,9 @@ namespace StoryFormatter
 				if (remaining.StartsWith("\t"))
 				{
 					result.Append(tabSizeOpen);
-					// Eat one tab at a time, adding our value and width.
-					while (remaining.StartsWith("\t"))
-					{
-						result.Append(leadTabVal);
-						width += LeadTabWidth;
-						remaining = remaining.Substring(1);
-					}
+					result.Append(leadTabVal);
+					leadingWidth += LeadTabWidth;
+					remaining = remaining.Substring(1);
 					result.Append(tabSizeClose);
 				}
 
@@ -216,7 +212,7 @@ namespace StoryFormatter
 					}
 
 					// Continue if we haven't reached the wrap width yet.
-					var currentWidth = width + Measure(current);
+					var currentWidth = leadingWidth + Measure(current);
 					if (currentWidth <= WrapAfterWidth)
 					{
 						previous = current;
@@ -231,6 +227,7 @@ namespace StoryFormatter
 					line.Clear();
 					line.Append(w);
 					previous = line.ToString().TrimEnd();
+					leadingWidth = 0f; // Also reset the leading width.
 				}
 
 				// Write out the final line.

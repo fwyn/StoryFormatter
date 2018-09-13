@@ -12,6 +12,9 @@ namespace StoryFormatter
 	public class StoryRenderer
 	{
 
+		private static readonly PointF MeasureZeroPoint = new PointF(0, 0);
+		private static readonly StringFormat MeasureFormat = new StringFormat(StringFormatFlags.MeasureTrailingSpaces);
+
 		public Graphics Graphics { get; }
 		public IniReader Ini { get; }
 
@@ -21,6 +24,7 @@ namespace StoryFormatter
 		public int LeadTabSpaces => Ini[null].GetInt32("LeadTabSpaces") ?? 3;
 		public int TabSpaces => Ini[null].GetInt32("TabSpaces") ?? 3;
 		public string FontFamily => Ini[null].GetString("FontFamily") ?? "Verdana";
+		public string EndOn => Ini[null].GetString("EndOn");
 
 		public string TabWidthVal { get; }
 		public Font ParagraphFont { get; }
@@ -36,7 +40,7 @@ namespace StoryFormatter
 			TabWidthVal = new string(' ', TabSpaces);
 			ParagraphFont = GetFont(ParagraphSize);
 			LeadTabFont = GetFont(LeadTabSize);
-			LeadTabWidth = Graphics.MeasureString(new string(' ', LeadTabSpaces), LeadTabFont).Width;
+			LeadTabWidth = MeasureString(new string(' ', LeadTabSpaces), LeadTabFont);
 
 			// Character size is the size of the glyph "0" in the element's font.
 			// MeasureString does a little padding though, so rather than trying
@@ -62,9 +66,13 @@ namespace StoryFormatter
 			return font;
 		}
 
+		private float MeasureString(string text, Font font)
+		{
+			return Graphics.MeasureString(text, font, MeasureZeroPoint, MeasureFormat).Width;
+		}
 		private float Measure(string text)
 		{
-			return Graphics.MeasureString(text.Replace("\t", TabWidthVal), ParagraphFont).Width;
+			return MeasureString(text.Replace("\t", TabWidthVal), ParagraphFont);
 		}
 
 		private static string ConsumeWord(string line, out string word)
@@ -110,14 +118,23 @@ namespace StoryFormatter
 			var tagItalicOpen = Ini[section].GetString("TagItalicOpen");
 			var tagItalicClose = Ini[section].GetString("TagItalicClose");
 
+			var italicPrefix = Ini[null].GetString("ItalicPrefix");
+			var ignoreLinePrefix = Ini[null].GetString("IgnoreLinePrefix");
+			var endOnPrefix = Ini[null].GetString("EndOnPrefix");
+
 			// Pre-define the size tags. They're the same for all lines.
 			var paragraphSizeOpen = String.Format(tagSizeOpen, ParagraphSize);
 			var paragraphSizeClose = tagSizeClose;
 			var tabSizeOpen = String.Format(tagSizeOpen, LeadTabSize);
 			var tabSizeClose = tagSizeClose;
 
-			// Start with the font tag.
 			var result = new StringBuilder();
+
+			// Append a header, if specified.
+			if (!String.IsNullOrEmpty(Ini[section].GetString("Header")))
+				result.Append(Ini[section].GetString("Header"));
+
+			// Start with the font tag.
 			result.AppendFormat(tagFontOpen, FontFamily);
 			result.AppendLine();
 
@@ -129,8 +146,16 @@ namespace StoryFormatter
 				var remaining = original;
 				var width = 0f;
 
+				// Handle ignored lines.
+				if (!String.IsNullOrEmpty(ignoreLinePrefix) && remaining.StartsWith(ignoreLinePrefix))
+					continue;
+
+				// Handle ending line processing.
+				if (!String.IsNullOrEmpty(endOnPrefix) && remaining.StartsWith(endOnPrefix))
+					break;
+
 				// Special case for empty lines.
-				if (String.IsNullOrEmpty(original))
+				if (String.IsNullOrEmpty(remaining))
 				{
 					result.Append(currentOpen);
 					result.Append(nbsp);
@@ -140,11 +165,11 @@ namespace StoryFormatter
 				}
 
 				// Handle italic lines.
-				if (remaining.StartsWith("/"))
+				if (!String.IsNullOrEmpty(italicPrefix) && remaining.StartsWith(italicPrefix))
 				{
 					currentOpen = tagItalicOpen;
 					currentClose = tagItalicClose;
-					remaining = remaining.Substring(1);
+					remaining = remaining.Substring(italicPrefix.Length);
 				}
 
 				// Handle lead tabs.
@@ -216,6 +241,10 @@ namespace StoryFormatter
 
 			// Close with the font tag.
 			result.AppendLine(tagFontClose);
+
+			// Append a footer, if specified.
+			if (!String.IsNullOrEmpty(Ini[section].GetString("Footer")))
+				result.Append(Ini[section].GetString("Footer"));
 
 			return result.ToString();
 		}

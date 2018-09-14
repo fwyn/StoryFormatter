@@ -16,6 +16,9 @@ namespace StoryFormatter
 
 		private void MainWindow_Load(object sender, EventArgs e)
 		{
+			Visible = false;
+			ShowInTaskbar = false;
+
 			// Prep our renderer.
 			var renderer = new StoryRenderer(CreateGraphics(), Program.Ini);
 

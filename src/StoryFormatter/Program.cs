@@ -59,14 +59,18 @@ Please specify a text file to format on the command line.",
 			FileDirectory = FileStory.Directory;
 			FileBaseName = FileStory.NameWithoutExtension();
 			FileBasePath = Path.Combine(FileDirectory.FullName, FileBaseName);
-			FileIni = FileDirectory.Combine("StoryFormatter.ini");
+
+			// Look for the ini file in the file's directory, and any parent location.
+			// Or if that fails, in the executable directory.
+			FileIni = FileDirectory.SearchUpFor("StoryFormatter.ini")
+				?? new FileInfo(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "StoryFormatter.ini"));
 
 			// Check that we have an ini file.
 			if (!FileIni.Exists)
 			{
 				MessageBox.Show(
 					$@"StoryFormatter.ini file missing from path: {FileDirectory.FullName}
-Please provide a StoryFormatter.ini file in the same directory as your story.",
+Please provide a StoryFormatter.ini file in the same directory as your story, or any parent, or at the StoryFormatter.exe.",
 					"StoryFormatter - Invalid command line", MessageBoxButtons.OK);
 				return false;
 			}

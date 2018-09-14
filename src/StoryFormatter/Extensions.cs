@@ -18,6 +18,20 @@ namespace StoryFormatter
 			return new FileInfo(Path.Combine(dio.FullName, part));
 		}
 
+		public static FileInfo SearchUpFor(this DirectoryInfo dio, string fileName)
+		{
+			while (true)
+			{
+				var current = dio.Combine(fileName);
+				if (current.Exists)
+					return current;
+
+				if (dio.Parent == null)
+					return null;
+				dio = dio.Parent;
+			}
+		}
+
 	}
 
 }

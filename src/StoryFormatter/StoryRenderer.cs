@@ -146,6 +146,11 @@ namespace StoryFormatter
 				var remaining = original;
 				var leadingWidth = 0f;
 
+				// Perform replacements.
+				foreach (var pair in Ini["replace"])
+					if (!String.IsNullOrEmpty(pair.Key))
+						remaining = remaining.Replace(pair.Key, pair.Value);
+
 				// Handle ignored lines.
 				if (!String.IsNullOrEmpty(ignoreLinePrefix) && remaining.StartsWith(ignoreLinePrefix))
 					continue;

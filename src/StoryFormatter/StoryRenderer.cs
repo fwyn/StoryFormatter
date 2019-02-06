@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace StoryFormatter
 {
@@ -72,7 +73,7 @@ namespace StoryFormatter
 		}
 		private float Measure(string text)
 		{
-			return MeasureString(text.Replace("\t", TabWidthVal), ParagraphFont);
+			return MeasureString(text, ParagraphFont);
 		}
 
 		private static string ConsumeWord(string line, out string word)
@@ -105,6 +106,29 @@ namespace StoryFormatter
 			return String.Empty;
 		}
 
+		private static readonly Regex TagAnchorOpenRex = new Regex(@"\[url=([^\]]+)\]");
+		private static readonly Regex TagAnchorCloseRex = new Regex(@"\[/url\]");
+
+		private string ReplaceRender(string input, string tabVal, string tagAnchorOpen, string tagAnchorClose)
+		{
+			var result = input.Replace("\t", tabVal);
+
+			result = TagAnchorOpenRex.Replace(result, tagAnchorOpen);
+			result = TagAnchorCloseRex.Replace(result, tagAnchorClose);
+
+			return result;
+		}
+
+		private string ReplaceMeasure(string input, string tabVal)
+		{
+			var result = input.Replace("\t", tabVal);
+
+			result = TagAnchorOpenRex.Replace(result, String.Empty);
+			result = TagAnchorCloseRex.Replace(result, String.Empty);
+
+			return result;
+		}
+
 		public string Render(string[] fileLines, string section)
 		{
 			var leadTabVal = Ini[section].GetString("LeadTabVal");
@@ -117,6 +141,8 @@ namespace StoryFormatter
 			var tagBreak = String.Concat(Ini[section].GetString("TagBreak") ?? String.Empty, Environment.NewLine);
 			var tagItalicOpen = Ini[section].GetString("TagItalicOpen");
 			var tagItalicClose = Ini[section].GetString("TagItalicClose");
+			var tagAnchorOpen = Ini[section].GetString("TagAnchorOpen");
+			var tagAnchorClose = Ini[section].GetString("TagAnchorClose");
 
 			var italicPrefix = Ini[null].GetString("ItalicPrefix");
 			var ignoreLinePrefix = Ini[null].GetString("IgnoreLinePrefix");
@@ -191,7 +217,7 @@ namespace StoryFormatter
 				if (0 == WrapAfterCharacters)
 				{
 					result.Append(currentOpen);
-					result.Append(remaining.Replace("\t", tabVal));
+					result.Append(ReplaceRender(remaining, tabVal, tagAnchorOpen, tagAnchorClose));
 					result.Append(currentClose);
 					result.Append(tagBreak);
 					continue;
@@ -200,43 +226,54 @@ namespace StoryFormatter
 				result.Append(currentOpen);
 
 				var firstWord = true;
-				var line = new StringBuilder();
-				var previous = String.Empty;
+				var lineRender = new StringBuilder();
+				var lineMeasure = new StringBuilder();
+				var renderPrevious = String.Empty;
 				while (!String.IsNullOrEmpty(remaining))
 				{
 					remaining = ConsumeWord(remaining, out var w);
-					line.Append(w);
-					var current = line.ToString().TrimEnd();
+
+					var renderWord = ReplaceRender(w, tabVal, tagAnchorOpen, tagAnchorClose);
+					lineRender.Append(renderWord);
+					var renderCurrent = lineRender.ToString().TrimEnd();
+
+					var measureWord = ReplaceMeasure(w, TabWidthVal);
+					lineMeasure.Append(measureWord);
+					var measureCurrent = lineMeasure.ToString().TrimEnd();
 
 					// Always continue on the first word.
 					if (firstWord)
 					{
-						previous = current;
+						renderPrevious = renderCurrent;
 						firstWord = false;
 						continue;
 					}
 
 					// Continue if we haven't reached the wrap width yet.
-					var currentWidth = leadingWidth + Measure(current);
+					var currentWidth = leadingWidth + Measure(measureCurrent);
 					if (currentWidth <= WrapAfterWidth)
 					{
-						previous = current;
+						renderPrevious = renderCurrent;
 						continue;
 					}
 
 					// Write out the previous line.
-					result.Append(previous.Replace("\t", tabVal));
+					result.Append(renderPrevious);
 					result.Append(tagBreak);
 
 					// Reset the line to just this word.
-					line.Clear();
-					line.Append(w);
-					previous = line.ToString().TrimEnd();
+					lineRender.Clear();
+					lineRender.Append(renderWord);
+					renderPrevious = lineRender.ToString().TrimEnd();
+
+					lineMeasure.Clear();
+					lineMeasure.Append(measureWord);
+
 					leadingWidth = 0f; // Also reset the leading width.
 				}
 
 				// Write out the final line.
-				result.Append(previous.Replace("\t", tabVal));
+				result.Append(renderPrevious);
 				result.Append(currentClose);
 				result.Append(tagBreak);
 			}
